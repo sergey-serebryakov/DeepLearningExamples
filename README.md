@@ -1,3 +1,11 @@
+# What's new in this fork?
+This fork introduces several features:
+1. Guides on how to run benchmarks using docker containers.
+2. Adding helper scripts to run multi-node MXNET.
+3. Adding guides on how to run multi-node benchmarks.
+
+PyTorch [guide](./PyTorch/Classification/RN50v1.5/docs/README.md). MXNET [guide](./MxNet/Classification/RN50v1.5/docs/README.md).
+
 # NVIDIA Deep Learning Examples for Volta Tensor Cores
 
 ## Introduction
