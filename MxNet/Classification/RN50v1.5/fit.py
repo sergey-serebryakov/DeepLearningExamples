@@ -274,26 +274,24 @@ def fit(args, network, data_loader, **kwargs):
     if args.optimizer in has_momentum:
         optimizer_params['momentum'] = args.mom
 
-    monitor = mx.mon.Monitor(
-        args.monitor, pattern=".*") if args.monitor > 0 else None
+    monitor = mx.mon.Monitor(args.monitor, pattern=".*") if args.monitor > 0 else None
+
+    nworkers = kv.num_workers if 'dist' in args.kv_store else 1
+    macrobatch_size = max(args.macrobatch_size, args.batch_size * nworkers)
+    if macrobatch_size != args.batch_size * nworkers:
+        print("[WARNING] Effective batch size={}, local batch size={}, num_workers={}".format(
+            macrobatch_size, args.batch_size, nworkers
+        ))
 
     # A limited number of optimizers have a warmup period
     has_warmup = {'lbsgd', 'lbnag'}
     if args.optimizer in has_warmup:
-        if 'dist' in args.kv_store:
-            nworkers = kv.num_workers
-        else:
-            nworkers = 1
         epoch_size = args.num_examples / args.batch_size / nworkers
 
         if epoch_size < 1:
             epoch_size = 1
-        macrobatch_size = args.macrobatch_size
-        if macrobatch_size < args.batch_size * nworkers:
-            macrobatch_size = args.batch_size * nworkers
         #batch_scale = round(float(macrobatch_size) / args.batch_size / nworkers +0.4999)
-        batch_scale = math.ceil(
-            float(macrobatch_size) / args.batch_size / nworkers)
+        batch_scale = math.ceil(float(macrobatch_size) / args.batch_size / nworkers)
         optimizer_params['updates_per_epoch'] = epoch_size
         optimizer_params['begin_epoch'] = args.load_epoch if args.load_epoch else 0
         optimizer_params['batch_scale'] = batch_scale
@@ -347,8 +345,19 @@ def fit(args, network, data_loader, **kwargs):
 
     # callbacks that run after each batch
     batch_end_callbacks = []
-    batch_end_callbacks.append(mx.callback.Speedometer(
-        args.batch_size, args.disp_batches))
+
+    # This is the original value
+    # speedometer_batch = args.batch_size
+    if 'async' in args.kv_store:
+        speedometer_batch = args.batch_size
+        print("[WARNING] Training is asynchronous, speedometer will be reporting performance of local workers. Worker "
+              "batch size is assumed to be {}.".format(speedometer_batch))
+    else:
+        speedometer_batch = macrobatch_size
+        print("[WARNING] Training is synchronous, speedometer will be reporting global performance for all workers. "
+              "Effective batch size is assumed to be {}.".format(speedometer_batch))
+
+    batch_end_callbacks.append(mx.callback.Speedometer(speedometer_batch, args.disp_batches))
 
     if 'batch_end_callback' in kwargs:
         cbs = kwargs['batch_end_callback']

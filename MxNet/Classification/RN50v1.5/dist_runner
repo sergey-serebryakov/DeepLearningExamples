@@ -13,35 +13,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import os, socket
+import os
 from argparse import ArgumentParser
-import warnings
+
 
 def str2bool(val):
-        """Return true if val represents true  value."""
-        return val.lower() in ('true', 'on', 't', '1')
+    """Return true if val represents true  value."""
+    return val.lower() in ('true', 'on', 't', '1')
+
 
 optparser = ArgumentParser(description="train resnet50 with MXNet")
-optparser.add_argument("-n", "--n-GPUs", type=int, default=8, help="number of GPUs to use; " +\
+optparser.add_argument("-n", "--n-GPUs", type=int, default=8, help="number of GPUs to use; " +
                        "default = 8")
-optparser.add_argument("-b", "--batch-size", type=int, default=208, help="batch size per GPU; " +\
+optparser.add_argument("-b", "--batch-size", type=int, default=208, help="batch size per GPU; " +
                        "default = 208")
-optparser.add_argument("-e", "--num-epochs", type=int, default=90, help="number of epochs; " +\
+optparser.add_argument("-e", "--num-epochs", type=int, default=90, help="number of epochs; " +
                        "default = 90")
-optparser.add_argument("-l", "--lr", type=float, default=0.1, help="learning rate; default = 0.1; " +\
+optparser.add_argument("-l", "--lr", type=float, default=0.1, help="learning rate; default = 0.1; " +
                        "IMPORTANT: true learning rate will be calculated as `lr * batch_size/256`")
 optparser.add_argument("--no-val", action="store_true",
                        help="if set no validation will be performed")
 optparser.add_argument("--no-dali", action="store_true", default=False,
                        help="use default MXNet pipeline instead of DALI")
-optparser.add_argument("--data-root", type=str, help="Directory with RecordIO data files", default="/data/imagenet/train-val-recordio-passthrough")
+optparser.add_argument("--data-root", type=str, help="Directory with RecordIO data files",
+                       default="/data/imagenet/train-val-recordio-passthrough")
 optparser.add_argument("--data-nthreads", type=int, help="number of threads for data loading; default = 40", default=40)
 optparser.add_argument("--dtype", type=str, help="Precision, float16 or float32", default="float16")
 
 optparser.add_argument('--rendezvous', type=str, default='')
 optparser.add_argument('--num_workers', type=str, default='1')
 optparser.add_argument('--scheduler', nargs='?', const=True, default=False, type=str2bool)
+optparser.add_argument('--kv_store', type=str, default='dist_device_sync')
 
 opts, args = optparser.parse_known_args()
 
@@ -49,20 +51,13 @@ if opts.dtype == "float16":
     n_ch = str(4 - int(opts.no_dali))
 else:
     n_ch = str(3)
-
 opts.batch_size *= opts.n_GPUs
-
 opts.lr *= opts.batch_size/256
 
-dist_launcher="python ./cluster_launcher.py --rendezvous {} --num_workers {} --scheduler {}".format(opts.rendezvous, opts.num_workers, str(opts.scheduler).lower())
 
-command = ""
-
-command += dist_launcher + " "
-
-#command += "python "+os.path.dirname(__file__)+"/train.py"
+command = "python ./cluster_launcher.py --rendezvous {} "\
+          "--num_workers {} --scheduler {}".format(opts.rendezvous, opts.num_workers, str(opts.scheduler).lower())
 command += " " + os.path.dirname(__file__) + "/train.py"
-
 command += " --num-layers 50"
 command += " --data-train " + opts.data_root + "/train.rec"
 command += " --data-train-idx " + opts.data_root + "/train.idx"
@@ -86,9 +81,7 @@ if opts.dtype == 'float16':
     command += " --batchnorm-layout NHWC --pooling-layout NHWC"
     command += " --conv-algo 1 --force-tensor-core 1"
     command += " --fuse-bn-add-relu 1"
-
-#command += " --kv-store dist_device_sync"
-command += " --kv-store dist_sync"
+command += " --kv-store " + opts.kv_store
 if not opts.no_dali:
     command += " --use-dali"
     command += " --dali-prefetch-queue 2 --dali-nvjpeg-memory-padding 64"
@@ -101,7 +94,7 @@ command += " --num-epochs " + str(opts.num_epochs)
 for arg in args:
     command += " " + arg
 
-#os.environ['MXNET_UPDATE_ON_KVSTORE'] = "0"
+#  os.environ['MXNET_UPDATE_ON_KVSTORE'] = "0"
 os.environ['MXNET_EXEC_ENABLE_ADDTO'] = "1"
 os.environ['MXNET_USE_TENSORRT'] = "0"
 os.environ['MXNET_GPU_WORKER_NTHREADS'] = "2"

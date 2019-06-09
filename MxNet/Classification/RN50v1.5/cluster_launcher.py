@@ -71,7 +71,7 @@ class Cluster(object):
             elif len(scheduler) == 3:
                 self.scheduler = {'interface': scheduler[0], 'host': scheduler[1], 'port': scheduler[2]}
             else:
-                raise ValueError("Invalid rendezvous specifier format (%s)" % (args.rendezvous))
+                raise ValueError("Invalid rendezvous specifier format (%s)" % args.rendezvous)
         self.agents = {
             'scheduler': None, 'server': None, 'worker': None
         }
@@ -110,15 +110,13 @@ class Cluster(object):
             self.agents['scheduler'] = self.run_agent('scheduler')
             time.sleep(5)
             if self.agents['scheduler'].poll() is not None:
-                print_now(
-                    "Scheduler was not started (return code=%s)" % (self.agents['scheduler'].poll())
-                )
+                print_now("Scheduler was not started (return code=%s)" % (self.agents['scheduler'].poll()))
                 exit(1)
         self.agents['server'] = self.run_agent('server')
 
         env = os.environ.copy()
         cluster_vars = self.agent_specs('worker')
-        print_now("Running agent 'worker' with cluster parameters '%s'" % (cluster_vars))
+        print_now("Running agent 'worker' with cluster parameters '%s'" % cluster_vars)
         env.update(cluster_vars)
         cmd = [sys.executable, '-u', self.benchmark['script']] + self.benchmark['args']
         self.agents['worker'] = subprocess.Popen(cmd, env=env)
