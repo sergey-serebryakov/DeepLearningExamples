@@ -41,12 +41,27 @@ def parse_args():
         return val.lower() in ('true', 'on', 't', '1')
     parser = argparse.ArgumentParser()
     parser.add_argument('--rendezvous', type=str, default='')
-    parser.add_argument('--num_workers', type=str, default='1')
+    parser.add_argument('--num_workers', type=int, default=1)
+    parser.add_argument('--num_servers', type=int, default=-1)
+
     parser.add_argument('--scheduler', nargs='?', const=True, default=False, type=str2bool)
-    parser.add_argument('--verbose', type=str, default='0')
+    parser.add_argument('--server', nargs='?', const=True, default=True, type=str2bool)
+
+
+    
+    parser.add_argument('--ps-verbose', type=str, default=-1)
     parser.add_argument("benchmark_script", type=str)
     parser.add_argument('benchmark_args', nargs=argparse.REMAINDER)
-    return parser.parse_args()
+    arg = parser.parse_args()
+
+    if args.num_servers < 0:
+        args.num_servers = args.num_workers
+    elif args.num_servers == 0:
+        args.server = False
+    if args.ps_verbose < 0:
+        args.ps_verbose = int(os.environ.get('PS_VERBOSE', 0))
+
+    return args
 
 
 def print_now(msg):
@@ -60,9 +75,10 @@ class Cluster(object):
     def __init__(self, args=None):
         if args is not None:
             self.num_workers = args.num_workers
-            self.num_servers = args.num_workers
+            self.num_servers = args.num_servers:
             self.is_scheduler = args.scheduler
-            self.verbose_level = args.verbose
+            self.is_server = args.server
+            self.ps_verbose_level = args.ps_verbose
             self.benchmark = {'script': args.benchmark_script, 'args': args.benchmark_args}
 
             scheduler = args.rendezvous.split(':')
@@ -81,7 +97,7 @@ class Cluster(object):
         specs = {
             'DMLC_ROLE': role, 'DMLC_PS_ROOT_URI': self.scheduler['host'],
             'DMLC_PS_ROOT_PORT': self.scheduler['port'], 'DMLC_NUM_SERVER': self.num_workers,
-            'DMLC_NUM_WORKER': self.num_servers, 'PS_VERBOSE': self.verbose_level
+            'DMLC_NUM_WORKER': self.num_servers, 'PS_VERBOSE': self.ps_verbose_level
         }
         if self.scheduler['interface'] is not None:
             specs['DMLC_INTERFACE'] = self.scheduler['interface']
@@ -112,7 +128,8 @@ class Cluster(object):
             if self.agents['scheduler'].poll() is not None:
                 print_now("Scheduler was not started (return code=%s)" % (self.agents['scheduler'].poll()))
                 exit(1)
-        self.agents['server'] = self.run_agent('server')
+        if self.is_servers > 0:
+            self.agents['server'] = self.run_agent('server')
 
         env = os.environ.copy()
         cluster_vars = self.agent_specs('worker')

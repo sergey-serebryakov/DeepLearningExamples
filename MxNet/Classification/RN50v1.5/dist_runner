@@ -44,8 +44,15 @@ optparser.add_argument('--rendezvous', type=str, default='')
 optparser.add_argument('--num_workers', type=str, default='1')
 optparser.add_argument('--scheduler', nargs='?', const=True, default=False, type=str2bool)
 optparser.add_argument('--kv_store', type=str, default='dist_device_sync')
+optparser.add_argument("--ps-verbose", type=int, default=-1, help="Verbose level for PS LITE; " +
+                       "default = 0")
+
 
 opts, args = optparser.parse_known_args()
+
+# If ps_verbose < 0, take environment variable PS_VERBOSE or 0
+opts.ps_verbose = max(opts.ps_verbose, os.environ.get('PS_VERBOSE', 0))
+
 
 if opts.dtype == "float16":
     n_ch = str(4 - int(opts.no_dali))
@@ -55,7 +62,7 @@ opts.batch_size *= opts.n_GPUs
 opts.lr *= opts.batch_size/256
 
 
-command = "python ./cluster_launcher.py --rendezvous {} "\
+command = "python ./cluster_launcher.py --verbose 0 --rendezvous {} "\
           "--num_workers {} --scheduler {}".format(opts.rendezvous, opts.num_workers, str(opts.scheduler).lower())
 command += " " + os.path.dirname(__file__) + "/train.py"
 command += " --num-layers 50"
